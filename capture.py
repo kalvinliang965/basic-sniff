@@ -104,8 +104,8 @@ class Config():
            return False
         return True
     
-    @classmethod 
-    def build(cls):
+    @staticmethod 
+    def build():
         parser = argparse.ArgumentParser(description="command-line parser")
         parser.add_argument("-i", type=str, help="interface", default="eth0")
         parser.add_argument("-r", type=str, help="tracefile in tcpdump format", default=None)
@@ -181,6 +181,7 @@ if __name__ == "__main__":
         print("-"*(TIME_WIDTH+PROTO_WIDTH+SRC_WIDTH+DST_WIDTH+INFO_WIDTH+3))
         # 1. tracefile is basically a pcap file we pass in to sniff()
         #       e.g. sniff(offline="trace.pcap", prn=callback)
+        # if the tracefile is not provided -> it will be `None` and sniff function will sniff `online`
         sniff(iface=config.interface, offline=config.tracefile, filter=config.expression, prn=PacketProcessor.process, count = 100)
     except Exception as e:
         logging.error(f"An error occured:{e}")
