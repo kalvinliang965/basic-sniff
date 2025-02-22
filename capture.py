@@ -5,9 +5,22 @@ from datetime import datetime
 import logging
 import sys
 
+TIME_WIDTH = 26
+PROTO_WIDTH = 5
+SRC_WIDTH = 25
+DST_WIDTH = 25
+INFO_WIDTH = 50
+
 SNI_HOST_NAME = 0x00
 logging.basicConfig(level=logging.WARNING)
 
+
+def format_row(timestamp, proto, src, dst, info):
+    return (f"{timestamp:<{TIME_WIDTH}} "
+            f"{proto:<{PROTO_WIDTH}} "
+            f"{src:<{SRC_WIDTH}} "
+            f"{dst:<{DST_WIDTH}} "
+            f"{info:<{INFO_WIDTH}}")
 
 class PacketProcessor:
     @staticmethod
@@ -22,14 +35,18 @@ class PacketProcessor:
         }
 
         if http := PacketProcessor._process_http(pkt):
-            print(f"{meta['time']} HTTP {meta['src']} -> {meta['dst']} {http}")
+            print(format_row(meta['time'], "HTTP", meta['src'], meta['dst'], http))
         elif tls := PacketProcessor._process_tls(pkt):
-            print(f"{meta['time']} TLS {meta['src']} -> {meta['dst']} {tls}")
+            print(format_row(meta['time'], "TLS", meta['src'], meta['dst'], tls))
+            # print(f"{meta['time']} TLS {meta['src']} -> {meta['dst']} {tls}")
             sys.exit(0)
         elif dns := PacketProcessor._process_dns(pkt):
-            print(f"{meta['time']} DNS {meta['src']} -> {meta['dst']} {dns}")
+            print(format_row(meta['time'], "DNS", meta['src'], meta['dst'], dns))
+            # print(f"{meta['time']} DNS {meta['src']} -> {meta['dst']} {dns}")
         else:
-            pkt.summary()
+            pass
+            # IGNORE!!
+            # pkt.summary()
 
     def _process_http(pkt):
         if not pkt.haslayer(HTTPRequest):
@@ -160,6 +177,8 @@ if __name__ == "__main__":
     try:
         config = Config.build()
         print("Confgi build successfully:",config)
+        print(f"{'Time':<{TIME_WIDTH}} {'Proto':<{PROTO_WIDTH}} {'Source':<{SRC_WIDTH}} {'Destination':<{DST_WIDTH}} {'Info':<{INFO_WIDTH}}")
+        print("-"*(TIME_WIDTH+PROTO_WIDTH+SRC_WIDTH+DST_WIDTH+INFO_WIDTH+3))
         # 1. tracefile is basically a pcap file we pass in to sniff()
         #       e.g. sniff(offline="trace.pcap", prn=callback)
         sniff(iface=config.interface, offline=config.tracefile, filter=config.expression, prn=PacketProcessor.process, count = 100)
