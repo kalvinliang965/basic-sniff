@@ -89,15 +89,15 @@ class Config():
     
     def __init__(self, interface, tracefile, expression):
         # validate the interface
-        if not self._validate_interface(interface):
+        if not Config._validate_interface(interface):
             raise Exception(f"Invalid interface:{interface}")
 
         self.interface = interface 
         self.tracefile = tracefile
         self.expression = None 
     
-    @classmethod
-    def _validate_interface(cls, interface):
+    @staticmethod
+    def _validate_interface(interface):
         available_ifaces = get_if_list()
         # check valid interface
         if interface not in available_ifaces:
@@ -113,7 +113,7 @@ class Config():
 
         args = parser.parse_args()
         
-        return cls(args.i, args.r, args.expression)
+        return Config(args.i, args.r, args.expression)
     
     def __str__(self):
         return f"interface: {self.interface}, tracefile: {self.tracefile}"
