@@ -25,11 +25,12 @@ def format_row(timestamp, proto, src, dst, info):
 class PacketProcessor:
     @staticmethod
     def process(pkt):
+        # print("process")
         if not pkt.haslayer(IP):
             return
-        
+        timestamp = float(pkt.time)
         meta = {
-            "time": datetime.fromtimestamp(pkt.time).strftime("%Y-%m-%d %H:%M:%S.%f"),
+            "time": datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S.%f"),
             "src": f"{pkt[IP].src}:{pkt.sport}",
             "dst": f"{pkt[IP].dst}:{pkt.dport}"
         }
@@ -49,6 +50,7 @@ class PacketProcessor:
             # pkt.summary()
 
     def _process_http(pkt):
+        # print("http")
         if not pkt.haslayer(HTTPRequest):
             return None
 
@@ -60,6 +62,7 @@ class PacketProcessor:
             return None
 
     def _process_tls(pkt):
+        # print("tls")
         client_hello=pkt.getlayer(TLSClientHello)
         if not client_hello:
             return None
@@ -74,6 +77,7 @@ class PacketProcessor:
         return None
 
     def _process_dns(pkt):
+        # print("dns")
         dnsqr = pkt.getlayer(DNSQR)
         if dnsqr and dnsqr.qtype == 1:
             try:
@@ -90,11 +94,11 @@ class Config():
     def __init__(self, interface, tracefile, expression):
         # validate the interface
         if not Config._validate_interface(interface):
-            raise Exception(f"Invalid interface:{interface}")
+            raise Exception(f"Config: invalid interface:{interface}")
 
         self.interface = interface 
         self.tracefile = tracefile
-        self.expression = None 
+        self.expression = expression 
     
     @staticmethod
     def _validate_interface(interface):
@@ -108,15 +112,15 @@ class Config():
     def build():
         parser = argparse.ArgumentParser(description="command-line parser")
         parser.add_argument("-i", type=str, help="interface", default="eth0")
-        parser.add_argument("-r", type=str, help="tracefile in tcpdump format", default=None)
-        parser.add_argument("expression", type=str,help="expression", nargs='?',default=None)
+        parser.add_argument("-r", type=str, help="tracefile", default=None)
+        parser.add_argument("expression", type=str,nargs='?',default=None, help="expressio; BFS Filter (e.g. 'host 192.168.1.1')")
 
         args = parser.parse_args()
         
         return Config(args.i, args.r, args.expression)
     
     def __str__(self):
-        return f"interface: {self.interface}, tracefile: {self.tracefile}"
+        return f"interface: {self.interface}, tracefile: {self.tracefile}, expression: {self.expression}"
 
 
 #def process_packet(pkt):
@@ -169,7 +173,7 @@ def init():
     # scapy dont have them load in by default
     load_layer("http")
     load_layer("tls")
-
+    conf.verb = 2
 if __name__ == "__main__":
     
     init()
@@ -182,7 +186,11 @@ if __name__ == "__main__":
         # 1. tracefile is basically a pcap file we pass in to sniff()
         #       e.g. sniff(offline="trace.pcap", prn=callback)
         # if the tracefile is not provided -> it will be `None` and sniff function will sniff `online`
-        sniff(iface=config.interface, offline=config.tracefile, filter=config.expression, prn=PacketProcessor.process, count = 100)
+        
+        if config.tracefile:
+            sniff(offline=config.tracefile, filter=config.expression, prn=PacketProcessor.process)
+        else:
+            sniff(iface=config.interface, filter=config.expression, prn=PacketProcessor.process)
     except Exception as e:
         logging.error(f"An error occured:{e}")
         sys.exit(1)
