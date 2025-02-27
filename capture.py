@@ -1,6 +1,9 @@
 import argparse
 from scapy.all import * 
 from scapy.layers.tls.extensions import TLS_Ext_ServerName
+from scapy.layers.http import HTTP, HTTPRequest
+from scapy.layers.tls.all import TLS
+from scapy.packet import bind_layers
 from datetime import datetime
 import logging
 import sys
@@ -34,7 +37,8 @@ class PacketProcessor:
             "src": f"{pkt[IP].src}:{pkt.sport}",
             "dst": f"{pkt[IP].dst}:{pkt.dport}"
         }
-
+        
+        pkt = PacketProcessor._process_packet(pkt)
         if http := PacketProcessor._process_http(pkt):
             print(format_row(meta['time'], "HTTP", meta['src'], meta['dst'], http))
         elif tls := PacketProcessor._process_tls(pkt):
@@ -48,9 +52,36 @@ class PacketProcessor:
             pass
             # IGNORE!!
             # pkt.summary()
+    
+    def _is_dns_packet(raw_bytes):
+        # DNS have 12 bytes long header
+        if len(raw_bytes) < 12:
+            return False 
+
+        transaction_id = raw_bytes[0:2]
+        flags = raw_bytes[2:4]
+        qdcount = int.from_bytes(raw_bytes[4:6], "big")
+        if flags[0] & 0xb10000000 == 0 or flags[0] & 0b00001111 == 0:
+            return True
+        return False
+
+    # convert pkt to TLS/HTTP/DNS/not parse it
+    def _process_packet(pkt):
+        if pkt.haslayer(TCP) or pkt.haslayer(UDP):
+            payload = bytes(pkt[TCP].payload) if pkt.haslayer(TCP) else bytes(pkt[UDP].payload)
+            if len(payload) > 2:
+                if payload[0] == 0x16 and payload[1] == 0x03:
+                    return TLS(payload)
+                elif PacketProcess._is_dns_packet(pkt):
+                    return DNS(payload)
+                elif payload.startswith(b"GET") or payload.startswith(b"POST"):
+                    return HTTP(payload)
+        # cannot parse it
+        return pkt
 
     def _process_http(pkt):
         # print("http")
+        load_layer("http")
         if not pkt.haslayer(HTTPRequest):
             return None
 
@@ -170,29 +201,55 @@ class Config():
     
 
 def init():
+    #if TCP in HTTP.overloaded_fields:
+    #    del HTTP.overloaded_fields[TCP]
+    #if TCP in TLS.overloaded_fields:
+    #    del TLS.overloaded_fields[TCP]
+    
+    bind_layers(TCP, HTTP, dport=[8081])
+    bind_layers(TCP, HTTP, sport=[8081])
+    bind_layers(TCP, TLS, dport=[8081])
+    bind_layers(TCP, TLS, sport=[8081])
     # scapy dont have them load in by default
     load_layer("http")
     load_layer("tls")
     conf.verb = 2
+
+
+def test_dns():
+    dns_req = IP(dst="8.8.8.8") / UDP(dport=53) / DNS(rd=1, qd=DNSQR(qname="google.com"))
+    if not 
+
+def test():
+
+    if not test_dns():
+        print("DNS Failed")
+    else:
+        print("DNS ok")
+
+
 if __name__ == "__main__":
     
     init()
 
-    try:
-        config = Config.build()
-        print("Confgi build successfully:",config)
-        print(f"{'Time':<{TIME_WIDTH}} {'Proto':<{PROTO_WIDTH}} {'Source':<{SRC_WIDTH}} {'Destination':<{DST_WIDTH}} {'Info':<{INFO_WIDTH}}")
-        print("-"*(TIME_WIDTH+PROTO_WIDTH+SRC_WIDTH+DST_WIDTH+INFO_WIDTH+3))
-        # 1. tracefile is basically a pcap file we pass in to sniff()
-        #       e.g. sniff(offline="trace.pcap", prn=callback)
-        # if the tracefile is not provided -> it will be `None` and sniff function will sniff `online`
-        
-        if config.tracefile:
-            sniff(offline=config.tracefile, filter=config.expression, prn=PacketProcessor.process)
-        else:
-            sniff(iface=config.interface, filter=config.expression, prn=PacketProcessor.process)
-    except Exception as e:
-        logging.error(f"An error occured:{e}")
-        sys.exit(1)
+
+    test()
+
+#    try:
+#        config = Config.build()
+#        print("Confgi build successfully:",config)
+#        print(f"{'Time':<{TIME_WIDTH}} {'Proto':<{PROTO_WIDTH}} {'Source':<{SRC_WIDTH}} {'Destination':<{DST_WIDTH}} {'Info':<{INFO_WIDTH}}")
+#        print("-"*(TIME_WIDTH+PROTO_WIDTH+SRC_WIDTH+DST_WIDTH+INFO_WIDTH+3))
+#        # 1. tracefile is basically a pcap file we pass in to sniff()
+#        #       e.g. sniff(offline="trace.pcap", prn=callback)
+#        # if the tracefile is not provided -> it will be `None` and sniff function will sniff `online`
+#        
+#        if config.tracefile:
+#            sniff(offline=config.tracefile, filter=config.expression, prn=PacketProcessor.process)
+#        else:
+#            sniff(iface=config.interface, filter=config.expression, prn=PacketProcessor.process)
+#    except Exception as e:
+#        logging.error(f"An error occured:{e}")
+#        sys.exit(1)
 
 
