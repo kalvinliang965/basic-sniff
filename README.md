@@ -80,6 +80,47 @@ reading from file two-dns.pcap, link-type EN10MB (Ethernet), snapshot length 655
 // This is expected as neither packet have sport of 41202
 ```
 
+
+## Testing nonstandard port and localhost
+
+- open three terminal.
+
+- The first terminal will host a localhost server using python. run `python3 -m http.server 8080 &` on the first terminal
+
+- The second terminal will be use in sending requests.
+
+- The third terminal will be use to run capture.py. run `capture.py sudo python3 capture.py -i lo "tcp port 8080"`
+
+- run the following command on the second terminal `after` running `capture.py`
+    - run `curl http://localhost:8080 &`
+    - run `curl -X POST http://localhost:8080 -d 'testdata'`
+    - run `echo -e "GET / HTTP/1.1\r\n\Host: localhost\r\n\r\n" | nc localhost 8080`
+
+### In python server terminal:
+
+```
+Serving HTTP on 0.0.0.0 port 8080 (http://0.0.0.0:8080/) ...
+127.0.0.1 - - [26/Feb/2025 19:37:09] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [26/Feb/2025 19:37:41] code 501, message Unsupported method ('POST')
+127.0.0.1 - - [26/Feb/2025 19:37:41] "POST / HTTP/1.1" 501 -
+127.0.0.1 - - [26/Feb/2025 19:38:06] "GET / HTTP/1.1" 200 -
+```
+
+### In capture.py terminal:
+
+```
+Confgi build successfully: interface: lo, tracefile: None, expression: tcp port 8080
+Time                       Proto Source                    Destination               Info                                              
+--------------------------------------------------------------------------------------------------------------------------------------
+2025-02-26 19:37:09.899595 HTTP  127.0.0.1:49556           127.0.0.1:8080            localhost:8080 GET /                              
+2025-02-26 19:37:09.899595 HTTP  127.0.0.1:49556           127.0.0.1:8080            localhost:8080 GET /                              
+2025-02-26 19:37:41.727966 HTTP  127.0.0.1:50496           127.0.0.1:8080            localhost:8080 POST /                             
+2025-02-26 19:37:41.727967 HTTP  127.0.0.1:50496           127.0.0.1:8080            localhost:8080 POST /                             
+2025-02-26 19:38:06.935609 HTTP  127.0.0.1:43418           127.0.0.1:8080            localhost GET /                                   
+2025-02-26 19:38:06.935610 HTTP  127.0.0.1:43418           127.0.0.1:8080            localhost GET /                                   
+^C  
+```
+
 ## installing dependencies and running my program
 
 - run `python3 -m venv venv` to install the virtual environment (Optional)
