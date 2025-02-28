@@ -120,12 +120,27 @@ Time                       Proto Source                    Destination          
 ^C   
  ```
 
-
-## Running my unittest
-
 - run `pip install pytest`
 
 - run `python3 -m pytest test_` to run one of the test file
+
+## Testing TLS on localhost
+
+- first we have to create the certificate. I did it using apache2
+    - i followed this video `https://youtu.be/l9-BkbI-7vA?si=LLcKoG2fK7ZebBMx## Running my unittest`
+- run `sudo capture.py -i lo`
+
+- curl -k https://127.0.0.1/:443
+
+```
+Confgi build successfully: interface: lo, tracefile: None, expression: None
+Time                       Proto Source                    Destination               Info                                              
+--------------------------------------------------------------------------------------------------------------------------------------
+2025-02-28 12:41:18.810912 TLS   127.0.0.1:41472           127.0.0.1:443             UNKNOWN                                           
+2025-02-28 12:41:18.810913 TLS   127.0.0.1:41472           127.0.0.1:443             UNKNOWN                                           
+2025-02-28 12:41:18.812458 TLS   127.0.0.1:443             127.0.0.1:41472           UNKNOWN                                           
+2025-02-28 12:41:18.812461 TLS   127.0.0.1:443             127.0.0.1:41472           UNKNOWN 
+```
 
 ## installing dependencies and running my program
 
