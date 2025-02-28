@@ -23,36 +23,36 @@ class TestProcessPakcet(unittest.TestCase):
             Method = "Get",
             Path = "/"
         )
-        self.assertTrue(PacketProcessor.process(pkt))
+        self.assertTrue(PacketProcessor.read_packet(pkt))
     
     def test_non_standard_http_port(self):
         http_payload = b"Get / HTTP/1.1\r\nHost: hidden.example\r\n\rn\n"
         pkt = self.base_ip / self.base_tcp_nonstd / Raw(load=http_payload)
-        self.assertTrue(PacketProcessor.process(pkt))
+        self.assertTrue(PacketProcessor.read_packet(pkt))
     
     def test_tls_standard_port(self):
         pkt = self.base_ip /self.base_tcp/TLSClientHello()
-        self.assertTrue(PacketProcessor.process(pkt))
+        self.assertTrue(PacketProcessor.read_packet(pkt))
 
     def test_tls_non_standard_port(self):
         tls_payload = bytes.fromhex("160301000101")
 
         pkt = self.base_ip/self.base_tcp_nonstd/Raw(load=tls_payload)
-        self.assertTrue(PacketProcessor.process(pkt))
+        self.assertTrue(PacketProcessor.read_packet(pkt))
 
     def test_dns_tcp_non_standard(self):
         dns_payload = bytes(DNS(qd=DNSQR(qname="pornhub.example")))
         pkt = self.base_ip / self.base_tcp_nonstd/ Raw(load=dns_payload)
-        self.assertTrue(PacketProcessor.process(pkt))
+        self.assertTrue(PacketProcessor.read_packet(pkt))
 
     def test_nah_id_win(self):
         target_ip = "1.1.1.1"
         domain = "www.example.com"
         dns_query = IP(dst=target_ip) / UDP(dport=555, sport=12345) / DNS(rd=1, qd=DNSQR(qname=domain))
-        self.assertTrue(PacketProcessor.process(dns_query))
+        self.assertTrue(PacketProcessor.read_packet(dns_query))
     def test_invalid_protocol(self):
         pkt = self.base_ip / self.base_tcp/ Raw(load=b"GARBASE")
-        self.assertFalse(PacketProcessor.process(pkt))
+        self.assertFalse(PacketProcessor.read_packet(pkt))
 
 
 if __name__ == "__main__":

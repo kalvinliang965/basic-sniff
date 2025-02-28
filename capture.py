@@ -29,8 +29,11 @@ def format_row(timestamp, proto, src, dst, info):
 class PacketProcessor:
     @staticmethod
     def process(pkt):
+        PacketProcessor.read_packet(pkt)
+        return None
+    @staticmethod
+    def read_packet(pkt):
         if not pkt.haslayer(IP):
-            print("No IP layer")
             return False
         timestamp = float(pkt.time)
         meta = {
@@ -54,7 +57,6 @@ class PacketProcessor:
                 return True
         
         # nothing is print
-        print("Nothing is print")
         return False
     
     @staticmethod
@@ -79,7 +81,7 @@ class PacketProcessor:
     
     @staticmethod
     def _is_http_packet(payload):
-        return payload.upper().startswith((b"GET", b"POST", b"HTTP/", b"HEAD"))
+        return payload.upper().startswith((b"GET", b"POST"))
 
     # convert pkt to TLS/HTTP/DNS/not parse it
     @staticmethod
@@ -111,7 +113,10 @@ class PacketProcessor:
            return None
         http=pkt[HTTPRequest]
         try:
-            return f"{http.Host.decode()} {http.Method.decode()} {http.Path.decode()}"
+            http_host = http.Host.decode() if http.Host else "UNKNOWN"
+            http_method = http.Method.decode() if http.Method else "UNKNOWN"
+            http_path = http.Path.decode() if http.Path else "UNKNOWN"
+            return f"{http_host} {http_method} {http_path}"
         except Exception as e:
             logging.warning(f"Unknown HTTP Error: {e}")
             return None
@@ -119,14 +124,11 @@ class PacketProcessor:
     def _process_tls(pkt):
         if pkt.haslayer(Raw):
             pkt = TLSClientHello(pkt[Raw].payload)
-        pkt.show()
         if not pkt.haslayer(TLSClientHello):
-            print("No clienthello")
             return None
 
         client_hello=pkt.getlayer(TLSClientHello)
         if not client_hello:
-            print("No client_hello")
             return None
 
         if sni := client_hello.getlayer(TLS_Ext_ServerName):
@@ -147,8 +149,6 @@ class PacketProcessor:
     # assume pkt pass in is dns
     @staticmethod
     def _process_dns(pkt):
-        print("inside process dns")
-        # pkt.show()
         try:
             if pkt.haslayer(Raw):
                 pkt = DNS(pkt[Raw].payload)
@@ -215,53 +215,6 @@ class Config():
     
     def __str__(self):
         return f"interface: {self.interface}, tracefile: {self.tracefile}, expression: {self.expression}"
-
-
-#def process_packet(pkt):
-#    
-#    if IP in pkt:
-#        ip_src=pkt[IP].src
-#        ip_dst=pkt[IP].dst
-#
-#    timestamp = datetime.fromtimestamp(pkt.time)
-#    if pkt.haslayer(HTTPRequest):
-#        http_request = pkt[HTTPRequest]
-#        print(f"{current_date} {current_time} HTTP {ip_src} -> {ip_dst} {http_request.Host.decode()} {http_request.Method.decode()} {http_request.Path.decode()}")
-#    elif pkt.haslayer(TLS) and pkt.haslayer(TLSClientHello):
-#        tls_client_hello = pkt[TLSClientHello]
-#        if hasattr(tls_client_hello, 'ext'):
-#            for ext in tls_client_hello.ext:
-#                # 0x00 here represent sni
-#                if ext.type == 0x00:
-#                    servernames = ext.servernames
-#                    for sn in servernames:
-#                        # 0x00 here represent host
-#                        if sn.nametype == 0x00:
-#                            servername = sn.servername
-#                            try:
-#                                sni = servername.decode('utf-8')
-#                                print(f"{current_date} {current_time} TLS {ip_src} -> {ip_dst} {sni}")
-#                            except UnicodeDecodeError:
-#                                print("Failed to decode SNI extension data.")
-#                            break
-#                    else:
-#                        print("Does not contain host data")
-#                    break
-#            else:
-#                print(f"{current_date} {current_time} TLS {pkt.src} -> {pkt.dst} NO_SERVER_NAME")
-#
-#        else:
-#            print("No extensions in TLS Client Hello")
-#
-#    # qtype==1 here refer to A(address) which mean IPv4
-#    elif pkt.haslayer(DNS) and pkt.haslayer(DNSQR) and pkt[DNSQR].qtype == 1: 
-#        qname = pkt.getlayer(DNSQR).qname.decode()
-#        print(f"{current_date} {current_time} DNS {ip_src} -> {ip_dst} {qname} ")
-#    else:
-#        # print(pkt.summary())
-#        print("Not intersting")
-
-    
 
 def init():
     #if TCP in HTTP.overloaded_fields:
