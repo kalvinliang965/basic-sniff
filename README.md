@@ -12,9 +12,17 @@
 
 - This class contain helper method and will specifies the output format
 
-- For the helper function, it will return None when the packet dont match the validation. From there, the static function of this class will continue to next case until the deafult case, which is to ignore this packet.
+- This class contain a `read_packet` function that print the statement and contain a `process` function that will be pass in to `prn`.
+    - The reason is that I wrote unittest to test the function return type, but `prn` also print the output of the function.
 
-- The helper function will raise errors if it cannot decode some value (e.g. hostname)
+- `read_packet` will call helper function to determine packet type: tls/dns/http. The helper function (`_identify_protocol`) will return the corresponding type in string if verified, else `None`.
+    - inside `read_packet`, i defined a map, which based on the return string from helper functions, it will call specific function to process the data then finally print it.
+
+- My program only capture packet with `IP` layer. Hence, packet with `IPv6` would not be capture. 
+
+- Because my program only capture `http` packet with `Get` or `Post`, to determine if the packet is `http`, I check if it start with either `Get` or `Post`
+
+- Because my program only capture `tls` packet with `TLSClientHello`, to check if packet is `tls`, I check if its payload have `0x16`, which is the handshake message, and I check for its version.
 
 ## sample output
 
@@ -120,14 +128,11 @@ Time                       Proto Source                    Destination          
 ^C   
  ```
 
-- run `pip install pytest`
-
-- run `python3 -m pytest test_` to run one of the test file
-
 ## Testing TLS on localhost
 
 - first we have to create the certificate. I did it using apache2
-    - i followed this video `https://youtu.be/l9-BkbI-7vA?si=LLcKoG2fK7ZebBMx## Running my unittest`
+    - i followed this video `https://youtu.be/l9-BkbI-7vA?si=LLcKoG2fK7ZebBMx`
+
 - run `sudo capture.py -i lo`
 
 - curl -k https://127.0.0.1/:443
@@ -140,6 +145,21 @@ Time                       Proto Source                    Destination          
 2025-02-28 12:41:18.810913 TLS   127.0.0.1:41472           127.0.0.1:443             UNKNOWN                                           
 2025-02-28 12:41:18.812458 TLS   127.0.0.1:443             127.0.0.1:41472           UNKNOWN                                           
 2025-02-28 12:41:18.812461 TLS   127.0.0.1:443             127.0.0.1:41472           UNKNOWN 
+```
+## Testing TLS on localhost and nonstandard port
+
+- similar to above but modify the port.config to something else (e.g. 6969)
+
+- run `sudo capture.py -i lo`
+
+- curl -k https://127.0.0.1/:6969
+
+```
+Confgi build successfully: interface: lo, tracefile: None, expression: None
+Time                       Proto Source                    Destination               Info                                              
+--------------------------------------------------------------------------------------------------------------------------------------
+2025-02-28 13:35:18.802052 TLS   127.0.0.1:42066           127.0.0.1:6969                                                              
+2025-02-28 13:35:18.802052 TLS   127.0.0.1:42066           127.0.0.1:6969 
 ```
 
 ## installing dependencies and running my program
