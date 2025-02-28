@@ -1,4 +1,5 @@
 import argparse
+from scapy.layers.tls.handshake import TLSClientHello
 from scapy.all import * 
 from scapy.layers.tls.extensions import TLS_Ext_ServerName
 from scapy.layers.http import HTTP, HTTPRequest
@@ -28,7 +29,6 @@ def format_row(timestamp, proto, src, dst, info):
 class PacketProcessor:
     @staticmethod
     def process(pkt):
-        # print("process")
         if not pkt.haslayer(IP):
             return
         timestamp = float(pkt.time)
@@ -38,26 +38,37 @@ class PacketProcessor:
             "dst": f"{pkt[IP].dst}:{pkt.dport}"
         }
         
-        pkt = PacketProcessor._process_packet(pkt)
-        if http := PacketProcessor._process_http(pkt):
-            print(format_row(meta['time'], "HTTP", meta['src'], meta['dst'], http))
-        elif tls := PacketProcessor._process_tls(pkt):
-            print(format_row(meta['time'], "TLS", meta['src'], meta['dst'], tls))
-            # print(f"{meta['time']} TLS {meta['src']} -> {meta['dst']} {tls}")
-            sys.exit(0)
-        elif dns := PacketProcessor._process_dns(pkt):
-            print(format_row(meta['time'], "DNS", meta['src'], meta['dst'], dns))
-            # print(f"{meta['time']} DNS {meta['src']} -> {meta['dst']} {dns}")
-        else:
-            pass
-            # IGNORE!!
-            # pkt.summary()
+        proto = PacketProcessor._identify_protocol(pkt)
+
+        handlers = {
+            "http": PacketProcessor._process_http,
+            "tls": PacketProcessor._process_tls,
+            "dns": PacketProcessor._process_dns
+        }
+
+        if proto in handlers:
+            print(proto)
+            print(pkt)
+            result = handlers[proto](pkt)
+            print(result)
+            if result:
+                print(format_row(meta['time'], proto.upper(), meta['src'], meta['dst'], result))
+#        if http := PacketProcessor._process_http(pkt):
+#            print(format_row(meta['time'], "HTTP", meta['src'], meta['dst'], http))
+#        elif tls := PacketProcessor._process_tls(pkt):
+#            print(format_row(meta['time'], "TLS", meta['src'], meta['dst'], tls))
+#            # print(f"{meta['time']} TLS {meta['src']} -> {meta['dst']} {tls}")
+#            sys.exit(0)
+#        elif dns := PacketProcessor._process_dns(pkt):
+#            print(format_row(meta['time'], "DNS", meta['src'], meta['dst'], dns))
+#            # print(f"{meta['time']} DNS {meta['src']} -> {meta['dst']} {dns}")
+#        else:
+#            pass
+#            # IGNORE!!
+#            # pkt.summary()
     
     @staticmethod
-    def _is_dns_packet(payload, pkt):
-        if pkt.haslayer(DNS):
-            return True
-
+    def _is_dns_packet(payload):
         # DNS have 12 bytes long header
         try:
             if len(payload) < 12:
@@ -78,29 +89,37 @@ class PacketProcessor:
     
     @staticmethod
     def _is_http_packet(payload):
-        return payload.startswith((b"GET", b"POST", b"HTTP/", b"HEAD"))
+        return payload.upper().startswith((b"GET", b"POST", b"HTTP/", b"HEAD"))
 
     # convert pkt to TLS/HTTP/DNS/not parse it
     @staticmethod
-    def _process_packet(pkt):
-        if pkt.haslayer(TCP) or pkt.haslayer(UDP):
-            payload = bytes(pkt[TCP].payload) if pkt.haslayer(TCP) else bytes(pkt[UDP].payload)
-            if len(payload) > 2:
-                if PacketProcessor._is_tls_packet(payload):
-                    return TLS(payload)
-                elif PacketProcessor._is_dns_packet(payload, pkt):
-                    return DNS(payload)
-                elif PacketProcessor._is_http_packet(payload):
-                    return HTTP(payload)
+    def _identify_protocol(pkt):
+        if pkt.haslayer(HTTPRequest):
+            return "http"
+        if pkt.haslayer(TLSClientHello):
+            return "tls"
+        if pkt.haslayer(DNSQR):
+            return "dns"
+        
+        layer = pkt.getlayer(TCP) or pkt.getlayer(UDP)
+        if layer and layer.payload:
+            payload = bytes(layer.payload)
+            if PacketProcessor._is_tls_packet(payload):
+                return "tls"
+            if PacketProcessor._is_http_packet(payload):
+                return "http"
+            if PacketProcessor._is_dns_packet(payload):
+                return "dns"
         # cannot parse it
-        return pkt
+        return None 
 
     @staticmethod
     def _process_http(pkt):
-        # print("http")
-        load_layer("http")
-        if not pkt.haslayer(HTTPRequest):
-            return None
+        if pkt.haslayer(Raw):
+            pkt = HTTP(pkt[Raw].payload)
+
+        if pkt.haslayer(HTTPRequest):
+           return None
 
         http=pkt[HTTPRequest]
         try:
@@ -110,7 +129,10 @@ class PacketProcessor:
             return None
     @staticmethod
     def _process_tls(pkt):
-        # print("tls")
+        
+        if pkt.haslayer(Raw):
+            pkt = TLS(pkt[Raw].payload)
+
         client_hello=pkt.getlayer(TLSClientHello)
         if not client_hello:
             return None
@@ -123,19 +145,45 @@ class PacketProcessor:
                         logging.warning(f"Unknown TLS Error: {e}")
                         return None
         return None
+
+    # assume pkt pass in is dns
     @staticmethod
     def _process_dns(pkt):
-        # print("dns")
-        dnsqr = pkt.getlayer(DNSQR)
-        if dnsqr and dnsqr.qtype == 1:
-            try:
-                return dnsqr.qname.decode('utf-8').rstrip('.')
-            except UnicodeDecodeError:
-                return dnsqr.qname.decode('latin-1').rstrip('.')
-            except Exception as e:
-                logging.warning(f"Unknown DNS Error: {e}")
+        print("inside process dns")
+        # pkt.show()
+        try:
+            if pkt.haslayer(Raw):
+                pkt = DNS(pkt[Raw].payload)
+            if pkt.haslayer(DNS):
+                dnsqr = pkt.getlayer(DNSQR)
+                if dnsqr:
+                    return dnsqr.qname.decode('utf-8').rstrip('.')
+        
+            layer = pkt.getlayer(UDP) or pkt.getlayer(TCP)
+            if not layer or not layer.payload:
                 return None
-        return None
+
+            payload = bytes(layer.payload)
+
+            domain_parts = []
+            # before 12 are the header
+            ptr = 12
+            while ptr < len(payload):
+                length = payload[ptr]
+                if length == 0:
+                    break
+                ptr += 1
+                if ptr + length > len(payload):
+                    return None
+                label = payload[ptr:ptr+length].decode('utf-8', 'ignore')
+                domain_parts.append(label)
+                ptr += length
+            return ".".join(domain_parts).rstrip('.')
+        except UnicodeDecodeError:
+            return dnsqr.qname.decode('latin-1').rstrip('.')
+        except Exception as e:
+            logging.warning(f"process DNS error: {e}")
+            return None
 
 class Config():
     
