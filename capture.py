@@ -74,9 +74,11 @@ class PacketProcessor:
     
     @staticmethod
     def _is_tls_packet(payload):
-        return len(payload) >= 3 and (
-                payload[0] == 0x16 and 
-                payload[1:3] in (b"\x03\x01", b"\x03\x02", b"\x03\x03")
+        return (
+            len(payload) >= 3 and 
+            payload[0] == 0x16 and 
+            payload[1] == 0x03 and
+            0x01 <= payload[2] <= 0x04
         )
     
     @staticmethod
@@ -130,7 +132,6 @@ class PacketProcessor:
         client_hello=pkt.getlayer(TLSClientHello)
         if not client_hello:
             return None
-
         if sni := client_hello.getlayer(TLS_Ext_ServerName):
             for name in sni.servernames:
                 if name.nametype == SNI_HOST_NAME:
