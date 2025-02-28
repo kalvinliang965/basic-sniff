@@ -30,7 +30,8 @@ class PacketProcessor:
     @staticmethod
     def process(pkt):
         if not pkt.haslayer(IP):
-            return
+            print("No IP layer")
+            return False
         timestamp = float(pkt.time)
         meta = {
             "time": datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S.%f"),
@@ -47,25 +48,14 @@ class PacketProcessor:
         }
 
         if proto in handlers:
-            print(proto)
-            print(pkt)
             result = handlers[proto](pkt)
-            print(result)
-            if result:
+            if result is not None:
                 print(format_row(meta['time'], proto.upper(), meta['src'], meta['dst'], result))
-#        if http := PacketProcessor._process_http(pkt):
-#            print(format_row(meta['time'], "HTTP", meta['src'], meta['dst'], http))
-#        elif tls := PacketProcessor._process_tls(pkt):
-#            print(format_row(meta['time'], "TLS", meta['src'], meta['dst'], tls))
-#            # print(f"{meta['time']} TLS {meta['src']} -> {meta['dst']} {tls}")
-#            sys.exit(0)
-#        elif dns := PacketProcessor._process_dns(pkt):
-#            print(format_row(meta['time'], "DNS", meta['src'], meta['dst'], dns))
-#            # print(f"{meta['time']} DNS {meta['src']} -> {meta['dst']} {dns}")
-#        else:
-#            pass
-#            # IGNORE!!
-#            # pkt.summary()
+                return True
+        
+        # nothing is print
+        print("Nothing is print")
+        return False
     
     @staticmethod
     def _is_dns_packet(payload):
@@ -116,11 +106,9 @@ class PacketProcessor:
     @staticmethod
     def _process_http(pkt):
         if pkt.haslayer(Raw):
-            pkt = HTTP(pkt[Raw].payload)
-
-        if pkt.haslayer(HTTPRequest):
+            pkt = HTTPRequest(pkt[Raw].load)
+        if not pkt.haslayer(HTTPRequest):
            return None
-
         http=pkt[HTTPRequest]
         try:
             return f"{http.Host.decode()} {http.Method.decode()} {http.Path.decode()}"
@@ -129,22 +117,32 @@ class PacketProcessor:
             return None
     @staticmethod
     def _process_tls(pkt):
-        
         if pkt.haslayer(Raw):
-            pkt = TLS(pkt[Raw].payload)
+            pkt = TLSClientHello(pkt[Raw].payload)
+        pkt.show()
+        if not pkt.haslayer(TLSClientHello):
+            print("No clienthello")
+            return None
 
         client_hello=pkt.getlayer(TLSClientHello)
         if not client_hello:
+            print("No client_hello")
             return None
+
         if sni := client_hello.getlayer(TLS_Ext_ServerName):
             for name in sni.servernames:
                 if name.nametype == SNI_HOST_NAME:
                     try:
-                        return name.servername.decode('utf-8', errors='ignore')
+                        if name.servername:
+                            return name.servername.decode('utf-8', errors='ignore')
+                        return ""
                     except Exception as e:
                         logging.warning(f"Unknown TLS Error: {e}")
                         return None
-        return None
+
+        # might not contain server name
+        return "" 
+
 
     # assume pkt pass in is dns
     @staticmethod
