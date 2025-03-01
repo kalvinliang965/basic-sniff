@@ -43,7 +43,7 @@ class PacketProcessor:
         }
         
         proto = PacketProcessor._identify_protocol(pkt)
-
+        
         handlers = {
             "http": PacketProcessor._process_http,
             "tls": PacketProcessor._process_tls,
@@ -59,6 +59,7 @@ class PacketProcessor:
         # nothing is print
         return False
     
+    # only check if the packet look like DNS
     @staticmethod
     def _is_dns_packet(payload):
         # DNS have 12 bytes long header
@@ -92,7 +93,7 @@ class PacketProcessor:
             return "http"
         if pkt.haslayer(TLSClientHello):
             return "tls"
-        if pkt.haslayer(DNSQR):
+        if pkt.haslayer(DNS):
             return "dns"
         
         layer = pkt.getlayer(TCP) or pkt.getlayer(UDP)
@@ -157,27 +158,7 @@ class PacketProcessor:
                 dnsqr = pkt.getlayer(DNSQR)
                 if dnsqr:
                     return dnsqr.qname.decode('utf-8').rstrip('.')
-        
-            layer = pkt.getlayer(UDP) or pkt.getlayer(TCP)
-            if not layer or not layer.payload:
                 return None
-
-            payload = bytes(layer.payload)
-
-            domain_parts = []
-            # before 12 are the header
-            ptr = 12
-            while ptr < len(payload):
-                length = payload[ptr]
-                if length == 0:
-                    break
-                ptr += 1
-                if ptr + length > len(payload):
-                    return None
-                label = payload[ptr:ptr+length].decode('utf-8', 'ignore')
-                domain_parts.append(label)
-                ptr += length
-            return ".".join(domain_parts).rstrip('.')
         except UnicodeDecodeError:
             return dnsqr.qname.decode('latin-1').rstrip('.')
         except Exception as e:
@@ -233,10 +214,6 @@ def init():
 if __name__ == "__main__":
     
     init()
-
-
-#    test()
-
     try:
         config = Config.build()
         print("Confgi build successfully:",config)
