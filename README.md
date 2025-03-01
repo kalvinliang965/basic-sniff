@@ -92,7 +92,7 @@ reading from file two-dns.pcap, link-type EN10MB (Ethernet), snapshot length 655
 
 - open three terminal.
 
-- The first terminal will host a localhost server using python. run `python3 -m http.server 8080 &` on the first terminal
+- The first terminal will host a localhost server using python. run `python3 -m http.server 6969 &` on the first terminal
 
 - The second terminal will be use in sending requests.
 
@@ -148,7 +148,7 @@ Time                       Proto Source                    Destination          
 ```
 ## Testing TLS on localhost and nonstandard port
 
-- similar to above but modify the port.config to something else (e.g. 6969)
+- similar to above but modify the port inside port.config to something else (e.g. 6969)
 
 - run `sudo capture.py -i lo`
 
